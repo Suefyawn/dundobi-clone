@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { loadStripe } from "@stripe/stripe-js";
 
 const NAV_LINKS = ["Home", "RAW", "RESERVE", "SHOP", "Research Study", "FunDoggy", "FAQ"];
 
@@ -50,6 +51,34 @@ const TikTok = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
 );
 
+// Image mapping based on color and ear style
+const getImageSrc = (color: string, ears: string) => {
+  const colorMap: { [key: string]: string } = {
+    "black-rust": "black-rust",
+    "red-rust": "red-rust",
+    "blue-rust": "blue-rust",
+    "fawn-rust": "red-rust" // fallback to red-rust
+  };
+
+  const earMap: { [key: string]: string } = {
+    "natural": "natural",
+    "long-show": "long-show",
+    "medium": "medium",
+    "short-military": "short"
+  };
+
+  const colorKey = colorMap[color] || "black-rust";
+  const earKey = earMap[ears] || "natural";
+
+  // Try to load specific image, fallback to color-only
+  const specificImage = `/images/${colorKey}-${earKey}.jpg`;
+  const fallbackImage = `/images/${colorKey}-natural.jpg`;
+  const defaultImage = "https://images.unsplash.com/photo-1608744882201-52a7f7f3dd60?w=800&q=80";
+
+  // Return specific image if ears are selected, otherwise just color
+  return ears ? specificImage : (color ? fallbackImage : defaultImage);
+};
+
 export default function Home() {
   const [color, setColor] = useState("");
   const [ears, setEars] = useState("");
@@ -61,6 +90,9 @@ export default function Home() {
   const [location, setLocation] = useState("");
   const [mobileNav, setMobileNav] = useState(false);
   const [totalPrice, setTotalPrice] = useState(PRICES.base);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [imageKey, setImageKey] = useState(0);
 
   // Calculate total price
   useEffect(() => {
@@ -75,6 +107,75 @@ export default function Home() {
 
     setTotalPrice(price);
   }, [dewClaw, gender, pickType, training]);
+
+  // Update image when color or ears change (with smooth transition)
+  useEffect(() => {
+    setImageKey(prev => prev + 1);
+  }, [color, ears]);
+
+  // Validate form
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {};
+
+    if (!color) newErrors.color = "Please select a color";
+    if (!ears) newErrors.ears = "Please select ear style";
+    if (!tail) newErrors.tail = "Please select tail style";
+    if (!gender) newErrors.gender = "Please select gender";
+    if (!location.trim()) newErrors.location = "Please enter your location";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Handle Stripe checkout
+  const handleReserve = async () => {
+    if (!validateForm()) {
+      // Scroll to first error
+      const firstErrorField = Object.keys(errors)[0];
+      document.getElementById(firstErrorField)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // Create checkout session
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: totalPrice,
+          selections: {
+            color,
+            ears,
+            tail,
+            dewClaw,
+            gender,
+            pickType,
+            training,
+            location
+          }
+        }),
+      });
+
+      const { sessionId } = await response.json();
+
+      // Redirect to Stripe Checkout
+      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+      if (stripe) {
+        await stripe.redirectToCheckout({ sessionId });
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+      alert('An error occurred. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const currentImage = getImageSrc(color, ears);
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -105,14 +206,26 @@ export default function Home() {
       {/* ── Main Content ── */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
-          {/* Image */}
+          {/* Image with smooth transitions */}
           <div className="relative aspect-square bg-neutral-900 rounded-sm overflow-hidden group">
             <img
-              src="https://images.unsplash.com/photo-1608744882201-52a7f7f3dd60?w=800&q=80"
-              alt="Doberman puppy"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+              key={imageKey}
+              src={currentImage}
+              alt={`Doberman puppy ${color} ${ears}`}
+              className="w-full h-full object-cover group-hover:scale-105 transition-all duration-700 ease-in-out"
+              onError={(e) => {
+                // Fallback to default image if specific image not found
+                e.currentTarget.src = "https://images.unsplash.com/photo-1608744882201-52a7f7f3dd60?w=800&q=80";
+              }}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+            
+            {/* Ear style indicator overlay */}
+            {ears && (
+              <div className="absolute top-4 right-4 bg-black/70 backdrop-blur px-3 py-2 rounded text-xs uppercase tracking-wider text-gold border border-gold/30">
+                {ears.replace('-', ' ')}
+              </div>
+            )}
           </div>
 
           {/* Product Details */}
@@ -148,12 +261,14 @@ export default function Home() {
             {/* Options */}
             <div className="space-y-4 mb-8">
               {/* Color */}
-              <div>
-                <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Color</label>
+              <div id="color">
+                <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">
+                  Color <span className="text-red-500">*</span>
+                </label>
                 <select 
                   value={color} 
-                  onChange={(e) => setColor(e.target.value)}
-                  className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors"
+                  onChange={(e) => { setColor(e.target.value); setErrors({...errors, color: ''}); }}
+                  className={`w-full bg-neutral-900 border ${errors.color ? 'border-red-500' : 'border-neutral-700'} text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors`}
                 >
                   <option value="">Select Color</option>
                   <option value="black-rust">Black & Rust</option>
@@ -161,16 +276,19 @@ export default function Home() {
                   <option value="blue-rust">Blue & Rust</option>
                   <option value="fawn-rust">Fawn & Rust</option>
                 </select>
+                {errors.color && <p className="text-red-500 text-xs mt-1">{errors.color}</p>}
               </div>
 
               {/* Ears & Tail */}
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Ears</label>
+                <div id="ears">
+                  <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">
+                    Ears <span className="text-red-500">*</span>
+                  </label>
                   <select 
                     value={ears} 
-                    onChange={(e) => setEars(e.target.value)}
-                    className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors"
+                    onChange={(e) => { setEars(e.target.value); setErrors({...errors, ears: ''}); }}
+                    className={`w-full bg-neutral-900 border ${errors.ears ? 'border-red-500' : 'border-neutral-700'} text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors`}
                   >
                     <option value="">Select</option>
                     <option value="natural">Natural</option>
@@ -178,19 +296,23 @@ export default function Home() {
                     <option value="medium">Medium Cut</option>
                     <option value="short-military">Short Military Cut</option>
                   </select>
+                  {errors.ears && <p className="text-red-500 text-xs mt-1">{errors.ears}</p>}
                 </div>
-                <div>
-                  <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Tail</label>
+                <div id="tail">
+                  <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">
+                    Tail <span className="text-red-500">*</span>
+                  </label>
                   <select 
                     value={tail} 
-                    onChange={(e) => setTail(e.target.value)}
-                    className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors"
+                    onChange={(e) => { setTail(e.target.value); setErrors({...errors, tail: ''}); }}
+                    className={`w-full bg-neutral-900 border ${errors.tail ? 'border-red-500' : 'border-neutral-700'} text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors`}
                   >
                     <option value="">Select</option>
                     <option value="natural">Natural</option>
                     <option value="medium">Medium Cut</option>
                     <option value="short-military">Short Military Cut</option>
                   </select>
+                  {errors.tail && <p className="text-red-500 text-xs mt-1">{errors.tail}</p>}
                 </div>
               </div>
 
@@ -208,17 +330,20 @@ export default function Home() {
                     <option value="removed">Removed (+$250)</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Gender</label>
+                <div id="gender">
+                  <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">
+                    Gender <span className="text-red-500">*</span>
+                  </label>
                   <select 
                     value={gender} 
-                    onChange={(e) => setGender(e.target.value)}
-                    className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors"
+                    onChange={(e) => { setGender(e.target.value); setErrors({...errors, gender: ''}); }}
+                    className={`w-full bg-neutral-900 border ${errors.gender ? 'border-red-500' : 'border-neutral-700'} text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors`}
                   >
                     <option value="">Select</option>
                     <option value="male">Male (+$2,000)</option>
                     <option value="female">Female (-$1,000)</option>
                   </select>
+                  {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender}</p>}
                 </div>
               </div>
             </div>
@@ -293,21 +418,40 @@ export default function Home() {
             </div>
 
             {/* Location */}
-            <div className="mb-8">
-              <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Location</label>
+            <div className="mb-8" id="location">
+              <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">
+                Location <span className="text-red-500">*</span>
+              </label>
               <input 
                 type="text"
                 value={location}
-                onChange={(e) => setLocation(e.target.value)}
+                onChange={(e) => { setLocation(e.target.value); setErrors({...errors, location: ''}); }}
                 placeholder="Enter your location"
-                className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors placeholder:text-neutral-600"
+                className={`w-full bg-neutral-900 border ${errors.location ? 'border-red-500' : 'border-neutral-700'} text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors placeholder:text-neutral-600`}
               />
+              {errors.location && <p className="text-red-500 text-xs mt-1">{errors.location}</p>}
             </div>
 
-            {/* Add to Cart */}
-            <button className="w-full bg-gold hover:bg-[#d4b55f] text-black font-bold uppercase tracking-widest py-4 text-sm transition-colors mb-6">
-              Reserve Now — ${totalPrice.toLocaleString()}.00
+            {/* Reserve Button */}
+            <button 
+              onClick={handleReserve}
+              disabled={isProcessing}
+              className={`w-full ${isProcessing ? 'bg-neutral-700 cursor-not-allowed' : 'bg-gold hover:bg-[#d4b55f]'} text-black font-bold uppercase tracking-widest py-4 text-sm transition-colors mb-6`}
+            >
+              {isProcessing ? 'Processing...' : `Reserve Now — $${totalPrice.toLocaleString()}.00`}
             </button>
+
+            {/* Validation reminder */}
+            {Object.keys(errors).length > 0 && (
+              <div className="bg-red-900/20 border border-red-500/50 text-red-300 px-4 py-3 rounded text-sm mb-6">
+                <p className="font-semibold mb-1">Please complete all required fields:</p>
+                <ul className="list-disc list-inside text-xs space-y-1">
+                  {Object.values(errors).map((error, i) => (
+                    <li key={i}>{error}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             {/* Share */}
             <div className="flex items-center gap-4 pt-4 border-t border-neutral-800">

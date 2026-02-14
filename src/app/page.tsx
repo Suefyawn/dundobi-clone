@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const NAV_LINKS = ["Home", "RAW", "RESERVE", "SHOP", "Research Study", "FunDoggy", "FAQ"];
 
@@ -17,11 +17,18 @@ const INCLUDES = [
   "Birth necessities",
 ];
 
-const PICK_TYPES = [
-  { id: "runt", label: "RUNT", desc: "Smallest of the litter" },
-  { id: "alpha", label: "ALPHA", desc: "Leaders of the pack" },
-  { id: "first", label: "FIRST OF LITTER", desc: "Skip the line and get the first pick on upcoming litter" },
-];
+// Pricing structure from extracted data
+const PRICES = {
+  base: 2000,
+  dewClaw: 250,
+  gender: {
+    male: 2000,
+    female: -1000
+  },
+  alpha: 2000,
+  firstOfLitter: 4000,
+  training: 2500
+};
 
 /* ── Icons ── */
 const Facebook = () => (
@@ -47,8 +54,27 @@ export default function Home() {
   const [color, setColor] = useState("");
   const [ears, setEars] = useState("");
   const [tail, setTail] = useState("");
-  const [pick, setPick] = useState("");
+  const [dewClaw, setDewClaw] = useState("");
+  const [gender, setGender] = useState("");
+  const [pickType, setPickType] = useState("");
+  const [training, setTraining] = useState("");
+  const [location, setLocation] = useState("");
   const [mobileNav, setMobileNav] = useState(false);
+  const [totalPrice, setTotalPrice] = useState(PRICES.base);
+
+  // Calculate total price
+  useEffect(() => {
+    let price = PRICES.base;
+    
+    if (dewClaw === "removed") price += PRICES.dewClaw;
+    if (gender === "male") price += PRICES.gender.male;
+    if (gender === "female") price += PRICES.gender.female;
+    if (pickType === "alpha") price += PRICES.alpha;
+    if (pickType === "first") price += PRICES.firstOfLitter;
+    if (training === "yes") price += PRICES.training;
+
+    setTotalPrice(price);
+  }, [dewClaw, gender, pickType, training]);
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -92,11 +118,16 @@ export default function Home() {
           {/* Product Details */}
           <div className="flex flex-col">
             <p className="text-xs uppercase tracking-[0.3em] text-gold mb-3">Dundobi Kennel</p>
-            <h1 className="font-serif text-4xl md:text-5xl font-bold mb-4">Reserve Your Puppy</h1>
-            <p className="text-3xl font-light text-gold mb-8">$2,000.00 <span className="text-sm text-neutral-500 ml-2">Regular price</span></p>
+            <h1 className="font-serif text-4xl md:text-5xl font-bold mb-4">Reserve Dobermann Puppy</h1>
+            <p className="text-3xl font-light text-gold mb-8">
+              ${totalPrice.toLocaleString()}.00 
+              {totalPrice !== PRICES.base && (
+                <span className="text-sm text-neutral-400 ml-2 line-through">${PRICES.base}.00</span>
+              )}
+            </p>
 
             <div className="border-t border-neutral-800 pt-6 mb-8">
-              <h3 className="text-sm uppercase tracking-widest text-neutral-400 mb-4">Base Price: $2,000 includes</h3>
+              <h3 className="text-sm uppercase tracking-widest text-neutral-400 mb-4">Base Price: ${PRICES.base.toLocaleString()} includes</h3>
               <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {INCLUDES.map((item) => (
                   <li key={item} className="flex items-start gap-2 text-sm text-neutral-300">
@@ -116,61 +147,166 @@ export default function Home() {
 
             {/* Options */}
             <div className="space-y-4 mb-8">
+              {/* Color */}
               <div>
-                <label className="block text-xs uppercase tracking-widest text-neutral-500 mb-2">Color</label>
-                <select value={color} onChange={(e) => setColor(e.target.value)}>
+                <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Color</label>
+                <select 
+                  value={color} 
+                  onChange={(e) => setColor(e.target.value)}
+                  className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors"
+                >
                   <option value="">Select Color</option>
-                  <option>Black & Rust</option>
-                  <option>Red & Rust</option>
-                  <option>Blue & Rust</option>
-                  <option>Fawn & Rust</option>
+                  <option value="black-rust">Black & Rust</option>
+                  <option value="red-rust">Red & Rust</option>
+                  <option value="blue-rust">Blue & Rust</option>
+                  <option value="fawn-rust">Fawn & Rust</option>
                 </select>
               </div>
+
+              {/* Ears & Tail */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-neutral-500 mb-2">Ears</label>
-                  <select value={ears} onChange={(e) => setEars(e.target.value)}>
+                  <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Ears</label>
+                  <select 
+                    value={ears} 
+                    onChange={(e) => setEars(e.target.value)}
+                    className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors"
+                  >
                     <option value="">Select</option>
-                    <option>Natural</option>
-                    <option>Cropped</option>
+                    <option value="natural">Natural</option>
+                    <option value="long-show">Long Show Cut</option>
+                    <option value="medium">Medium Cut</option>
+                    <option value="short-military">Short Military Cut</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-neutral-500 mb-2">Tail</label>
-                  <select value={tail} onChange={(e) => setTail(e.target.value)}>
+                  <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Tail</label>
+                  <select 
+                    value={tail} 
+                    onChange={(e) => setTail(e.target.value)}
+                    className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors"
+                  >
                     <option value="">Select</option>
-                    <option>Natural</option>
-                    <option>Docked</option>
+                    <option value="natural">Natural</option>
+                    <option value="medium">Medium Cut</option>
+                    <option value="short-military">Short Military Cut</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Dew Claw & Gender */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Dew Claw</label>
+                  <select 
+                    value={dewClaw} 
+                    onChange={(e) => setDewClaw(e.target.value)}
+                    className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors"
+                  >
+                    <option value="">Select</option>
+                    <option value="natural">Natural</option>
+                    <option value="removed">Removed (+$250)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Gender</label>
+                  <select 
+                    value={gender} 
+                    onChange={(e) => setGender(e.target.value)}
+                    className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors"
+                  >
+                    <option value="">Select</option>
+                    <option value="male">Male (+$2,000)</option>
+                    <option value="female">Female (-$1,000)</option>
                   </select>
                 </div>
               </div>
             </div>
 
-            {/* Pick Type */}
+            {/* Special Picks */}
             <div className="mb-8">
-              <label className="block text-xs uppercase tracking-widest text-neutral-500 mb-3">Pick Type</label>
+              <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-3">Place on Litter (Optional)</label>
               <div className="space-y-3">
-                {PICK_TYPES.map((p) => (
-                  <label
-                    key={p.id}
-                    className={`flex items-start gap-3 p-4 border cursor-pointer transition-all ${
-                      pick === p.id ? "border-gold bg-gold/5" : "border-neutral-800 hover:border-neutral-600"
-                    }`}
-                  >
-                    <input type="radio" name="pick" value={p.id} checked={pick === p.id} onChange={() => setPick(p.id)}
-                      className="mt-1 accent-[#c9a84c]" />
-                    <div>
-                      <span className="font-semibold text-sm tracking-wider">{p.label}</span>
-                      <p className="text-xs text-neutral-500 mt-0.5">{p.desc}</p>
-                    </div>
-                  </label>
-                ))}
+                <label className={`flex items-start gap-3 p-4 border cursor-pointer transition-all ${
+                  pickType === "runt" ? "border-gold bg-gold/5" : "border-neutral-800 hover:border-neutral-600"
+                }`}>
+                  <input 
+                    type="radio" 
+                    name="pickType" 
+                    value="runt" 
+                    checked={pickType === "runt"} 
+                    onChange={() => setPickType("runt")}
+                    className="mt-1 accent-[#c9a84c]" 
+                  />
+                  <div>
+                    <span className="font-semibold text-sm tracking-wider">RUNT</span>
+                    <p className="text-xs text-neutral-500 mt-0.5">Smallest of the litter</p>
+                  </div>
+                </label>
+                <label className={`flex items-start gap-3 p-4 border cursor-pointer transition-all ${
+                  pickType === "alpha" ? "border-gold bg-gold/5" : "border-neutral-800 hover:border-neutral-600"
+                }`}>
+                  <input 
+                    type="radio" 
+                    name="pickType" 
+                    value="alpha" 
+                    checked={pickType === "alpha"} 
+                    onChange={() => setPickType("alpha")}
+                    className="mt-1 accent-[#c9a84c]" 
+                  />
+                  <div>
+                    <span className="font-semibold text-sm tracking-wider">ALPHA (+$2,000)</span>
+                    <p className="text-xs text-neutral-500 mt-0.5">Leaders of the pack</p>
+                  </div>
+                </label>
+                <label className={`flex items-start gap-3 p-4 border cursor-pointer transition-all ${
+                  pickType === "first" ? "border-gold bg-gold/5" : "border-neutral-800 hover:border-neutral-600"
+                }`}>
+                  <input 
+                    type="radio" 
+                    name="pickType" 
+                    value="first" 
+                    checked={pickType === "first"} 
+                    onChange={() => setPickType("first")}
+                    className="mt-1 accent-[#c9a84c]" 
+                  />
+                  <div>
+                    <span className="font-semibold text-sm tracking-wider">FIRST OF LITTER (+$4,000)</span>
+                    <p className="text-xs text-neutral-500 mt-0.5">Skip the line and get the first pick on upcoming litter</p>
+                  </div>
+                </label>
               </div>
+            </div>
+
+            {/* Training */}
+            <div className="mb-8">
+              <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Breeders Obedience Training</label>
+              <select 
+                value={training} 
+                onChange={(e) => setTraining(e.target.value)}
+                className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors"
+              >
+                <option value="">Select</option>
+                <option value="yes">Yes (+$2,500)</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+
+            {/* Location */}
+            <div className="mb-8">
+              <label className="block text-xs uppercase tracking-widest text-neutral-400 mb-2">Location</label>
+              <input 
+                type="text"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="Enter your location"
+                className="w-full bg-neutral-900 border border-neutral-700 text-white px-4 py-3 text-sm focus:outline-none focus:border-gold transition-colors placeholder:text-neutral-600"
+              />
             </div>
 
             {/* Add to Cart */}
-            <button className="w-full bg-gold hover:bg-gold-light text-black font-bold uppercase tracking-widest py-4 text-sm transition-colors mb-6">
-              Reserve Now — $2,000.00
+            <button className="w-full bg-gold hover:bg-[#d4b55f] text-black font-bold uppercase tracking-widest py-4 text-sm transition-colors mb-6">
+              Reserve Now — ${totalPrice.toLocaleString()}.00
             </button>
 
             {/* Share */}
@@ -198,7 +334,7 @@ export default function Home() {
               <h4 className="text-xs uppercase tracking-widest text-neutral-400 mb-4">Stay Updated</h4>
               <div className="flex">
                 <input type="email" placeholder="Enter your email" className="flex-1 bg-neutral-900 border border-neutral-700 text-white text-sm px-4 py-3 focus:outline-none focus:border-gold transition-colors" />
-                <button className="bg-gold text-black font-bold text-xs uppercase tracking-wider px-6 hover:bg-gold-light transition-colors">Join</button>
+                <button className="bg-gold text-black font-bold text-xs uppercase tracking-wider px-6 hover:bg-[#d4b55f] transition-colors">Join</button>
               </div>
             </div>
             <div>
